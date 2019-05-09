@@ -27,6 +27,9 @@
  * @example encode_video.c
  */
 
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,7 +69,8 @@ static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
     }
 }
 
-int main(int argc, char **argv)
+// int main(int argc, char **argv)
+static PyObject* helloworld(PyObject* self, PyObject* args)
 {
     const char *filename, *codec_name;
     const AVCodec *codec;
@@ -77,12 +81,18 @@ int main(int argc, char **argv)
     AVPacket *pkt;
     uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
-    if (argc <= 2) {
-        fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
-        exit(0);
+    // if (argc <= 2) {
+    //     fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+    //     exit(0);
+    // }
+    // filename = argv[1];
+    // codec_name = argv[2];
+    // filename = "out.mp4";
+    // codec_name = "mpeg4";
+    int seconds;
+    if(!PyArg_ParseTuple(args, "ssi", &filename, &codec_name, &seconds)) {
+        return Py_None;
     }
-    filename = argv[1];
-    codec_name = argv[2];
 
     /* find the mpeg1video encoder */
     codec = avcodec_find_encoder_by_name(codec_name);
@@ -152,7 +162,7 @@ int main(int argc, char **argv)
     }
 
     /* encode 1 second of video */
-    for (i = 0; i < 25; i++) {
+    for (i = 0; i < seconds; i++) {
         fflush(stdout);
 
         /* make sure the frame data is writable */
@@ -193,5 +203,38 @@ int main(int argc, char **argv)
     av_frame_free(&frame);
     av_packet_free(&pkt);
 
-    return 0;
+    // return 0;
+    return Py_None;
+}
+
+// #include <Python.h>
+
+// Function 1: A simple 'hello world' function
+// static PyObject* helloworld(PyObject* self, PyObject* args)
+// {
+//     printf("Hello World\n");
+//     return Py_None;
+// }
+
+// Our Module's Function Definition struct
+// We require this `NULL` to signal the end of our method
+// definition
+static PyMethodDef myMethods[] = {
+    { "helloworld", helloworld, METH_VARARGS, "Prints Hello World" },
+    { NULL, NULL, 0, NULL }
+};
+
+// Our Module Definition struct
+static struct PyModuleDef myModule = {
+    PyModuleDef_HEAD_INIT,
+    "myModule",
+    "Test Module",
+    -1,
+    myMethods
+};
+
+// Initializes our module using our above struct
+PyMODINIT_FUNC PyInit_myModule(void)
+{
+    return PyModule_Create(&myModule);
 }
