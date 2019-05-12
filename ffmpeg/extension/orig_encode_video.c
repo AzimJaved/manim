@@ -69,13 +69,12 @@ static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
     }
 }
 
-// int main(int argc, char **argv)
 static PyObject* helloworld(PyObject* self, PyObject* args)
 {
     const char *filename, *codec_name;
     const AVCodec *codec;
     AVCodecContext *c= NULL;
-    int i, ret, x, y;
+    int i, ret, x, y, frames, file_descriptor;
     FILE *f;
     AVFrame *frame;
     AVPacket *pkt;
@@ -87,10 +86,10 @@ static PyObject* helloworld(PyObject* self, PyObject* args)
     // }
     // filename = argv[1];
     // codec_name = argv[2];
-    // filename = "out.mp4";
-    // codec_name = "mpeg4";
-    int seconds;
-    if(!PyArg_ParseTuple(args, "ssi", &filename, &codec_name, &seconds)) {
+    filename = "out.mp4";
+    codec_name = "mpeg4";
+    frames = 60;
+    if(!PyArg_ParseTuple(args, "i", &file_descriptor)) {
         return Py_None;
     }
 
@@ -114,11 +113,11 @@ static PyObject* helloworld(PyObject* self, PyObject* args)
     /* put sample parameters */
     c->bit_rate = 400000;
     /* resolution must be a multiple of two */
-    c->width = 352;
-    c->height = 288;
+    c->width = 2560;
+    c->height = 1440;
     /* frames per second */
-    c->time_base = (AVRational){1, 25};
-    c->framerate = (AVRational){25, 1};
+    c->time_base = (AVRational){1, 60};
+    c->framerate = (AVRational){60, 1};
 
     /* emit one intra frame every ten frames
      * check frame pict_type before passing frame
@@ -140,11 +139,12 @@ static PyObject* helloworld(PyObject* self, PyObject* args)
         exit(1);
     }
 
-    f = fopen(filename, "wb");
-    if (!f) {
-        fprintf(stderr, "Could not open %s\n", filename);
-        exit(1);
-    }
+    f = fdopen(file_descriptor, "wb")
+    // f = fopen(filename, "wb");
+    // if (!f) {
+    //     fprintf(stderr, "Could not open %s\n", filename);
+    //     exit(1);
+    // }
 
     frame = av_frame_alloc();
     if (!frame) {
@@ -155,14 +155,14 @@ static PyObject* helloworld(PyObject* self, PyObject* args)
     frame->width  = c->width;
     frame->height = c->height;
 
-    ret = av_frame_get_buffer(frame, 32);
+    ret = av_frame_get_buffer(frame, 0);
     if (ret < 0) {
         fprintf(stderr, "Could not allocate the video frame data\n");
         exit(1);
     }
 
     /* encode 1 second of video */
-    for (i = 0; i < seconds; i++) {
+    for (i = 0; i < frames; i++) {
         fflush(stdout);
 
         /* make sure the frame data is writable */
@@ -207,14 +207,142 @@ static PyObject* helloworld(PyObject* self, PyObject* args)
     return Py_None;
 }
 
-// #include <Python.h>
+static PyObject* helloworld_orig(PyObject* self, PyObject* args)
+{
+    const char *filename, *codec_name;
+    const AVCodec *codec;
+    AVCodecContext *c= NULL;
+    int i, ret, x, y, frames;
+    FILE *f;
+    AVFrame *frame;
+    AVPacket *pkt;
+    uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 
-// Function 1: A simple 'hello world' function
-// static PyObject* helloworld(PyObject* self, PyObject* args)
-// {
-//     printf("Hello World\n");
-//     return Py_None;
-// }
+    // if (argc <= 2) {
+    //     fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+    //     exit(0);
+    // }
+    // filename = argv[1];
+    // codec_name = argv[2];
+    filename = "out.mp4";
+    codec_name = "mpeg4";
+    frames = 60;
+    // if(!PyArg_ParseTuple(args, "ssi", &filename, &codec_name, &seconds)) {
+    //     return Py_None;
+    // }
+
+    /* find the mpeg1video encoder */
+    codec = avcodec_find_encoder_by_name(codec_name);
+    if (!codec) {
+        fprintf(stderr, "Codec '%s' not found\n", codec_name);
+        exit(1);
+    }
+
+    c = avcodec_alloc_context3(codec);
+    if (!c) {
+        fprintf(stderr, "Could not allocate video codec context\n");
+        exit(1);
+    }
+
+    pkt = av_packet_alloc();
+    if (!pkt)
+        exit(1);
+
+    /* put sample parameters */
+    c->bit_rate = 400000;
+    /* resolution must be a multiple of two */
+    c->width = 2560;
+    c->height = 1440;
+    /* frames per second */
+    c->time_base = (AVRational){1, 60};
+    c->framerate = (AVRational){60, 1};
+
+    /* emit one intra frame every ten frames
+     * check frame pict_type before passing frame
+     * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
+     * then gop_size is ignored and the output of encoder
+     * will always be I frame irrespective to gop_size
+     */
+    c->gop_size = 10;
+    c->max_b_frames = 1;
+    c->pix_fmt = AV_PIX_FMT_YUV420P;
+
+    if (codec->id == AV_CODEC_ID_H264)
+        av_opt_set(c->priv_data, "preset", "slow", 0);
+
+    /* open it */
+    ret = avcodec_open2(c, codec, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "Could not open codec: %s\n", av_err2str(ret));
+        exit(1);
+    }
+
+    f = fopen(filename, "wb");
+    if (!f) {
+        fprintf(stderr, "Could not open %s\n", filename);
+        exit(1);
+    }
+
+    frame = av_frame_alloc();
+    if (!frame) {
+        fprintf(stderr, "Could not allocate video frame\n");
+        exit(1);
+    }
+    frame->format = c->pix_fmt;
+    frame->width  = c->width;
+    frame->height = c->height;
+
+    ret = av_frame_get_buffer(frame, 0);
+    if (ret < 0) {
+        fprintf(stderr, "Could not allocate the video frame data\n");
+        exit(1);
+    }
+
+    /* encode 1 second of video */
+    for (i = 0; i < frames; i++) {
+        fflush(stdout);
+
+        /* make sure the frame data is writable */
+        ret = av_frame_make_writable(frame);
+        if (ret < 0)
+            exit(1);
+
+        /* prepare a dummy image */
+        /* Y */
+        for (y = 0; y < c->height; y++) {
+            for (x = 0; x < c->width; x++) {
+                frame->data[0][y * frame->linesize[0] + x] = x + y + i * 3;
+            }
+        }
+
+        /* Cb and Cr */
+        for (y = 0; y < c->height/2; y++) {
+            for (x = 0; x < c->width/2; x++) {
+                frame->data[1][y * frame->linesize[1] + x] = 128 + y + i * 2;
+                frame->data[2][y * frame->linesize[2] + x] = 64 + x + i * 5;
+            }
+        }
+
+        frame->pts = i;
+
+        /* encode the image */
+        encode(c, frame, pkt, f);
+    }
+
+    /* flush the encoder */
+    encode(c, NULL, pkt, f);
+
+    /* add sequence end code to have a real MPEG file */
+    fwrite(endcode, 1, sizeof(endcode), f);
+    fclose(f);
+
+    avcodec_free_context(&c);
+    av_frame_free(&frame);
+    av_packet_free(&pkt);
+
+    // return 0;
+    return Py_None;
+}
 
 // Our Module's Function Definition struct
 // We require this `NULL` to signal the end of our method

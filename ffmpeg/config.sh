@@ -1,6 +1,6 @@
 #!/bin/bash
 
-FFMPEG_DIR="FFmpeg-n4.1.3"
+FFMPEG_DIR="FFmpeg"
 INSTALL_DIR="../install"
 cd $FFMPEG_DIR && ./configure \
     --prefix="$INSTALL_DIR" \

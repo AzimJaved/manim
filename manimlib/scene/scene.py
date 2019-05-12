@@ -74,7 +74,8 @@ class Scene(Container):
         return self.__class__.__name__
 
     def print_end_message(self):
-        print("Played {} animations".format(self.num_plays))
+        # print("Played {} animations".format(self.num_plays))
+        pass
 
     def set_variables_as_attrs(self, *objects, **newly_named_objects):
         """

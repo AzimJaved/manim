@@ -242,17 +242,21 @@ class SceneFileWriter(object):
                 command += [STREAMING_PROTOCOL + '://' + STREAMING_IP + ':' + STREAMING_PORT]
         else:
             command += [temp_file_path]
-        self.writing_process = subprocess.Popen(command, stdin=subprocess.PIPE)
+        # self.writing_process = subprocess.Popen(command, stdin=subprocess.PIPE)
+        self.writing_process = subprocess.Popen(
+            'cat',
+            stdin=subprocess.PIPE,
+        )
 
     def close_movie_pipe(self):
         self.writing_process.stdin.close()
         self.writing_process.wait()
         if self.livestreaming:
             return True
-        shutil.move(
-            self.temp_partial_movie_file_path,
-            self.partial_movie_file_path,
-        )
+        # shutil.move(
+        #     self.temp_partial_movie_file_path,
+        #     self.partial_movie_file_path,
+        # )
 
     def combine_movie_files(self):
         # Manim renders the scene as many smaller movie files
@@ -343,4 +347,5 @@ class SceneFileWriter(object):
         self.print_file_ready_message(movie_file_path)
 
     def print_file_ready_message(self, file_path):
-        print("\nFile ready at {}\n".format(file_path))
+        # print("\nFile ready at {}\n".format(file_path))
+        pass
