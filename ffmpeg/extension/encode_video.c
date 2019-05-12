@@ -40,8 +40,7 @@
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 
-static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
-                   FILE *outfile)
+static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, FILE* f)
 {
     int ret;
 
@@ -65,97 +64,58 @@ static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt,
         }
 
         // printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
-        fwrite(pkt->data, 1, pkt->size, outfile);
+        fwrite(pkt->data, 1, pkt->size, f);
         av_packet_unref(pkt);
     }
 }
 
-void render(int file_descriptor, const uint8_t* frame_data, int frame_length) {
-    // get the codec
-    const char *codec_name = "mpeg4";
-    const AVCodec *codec;
-    codec = avcodec_find_encoder_by_name(codec_name);
-    if (!codec) {
-        fprintf(stderr, "Codec '%s' not found\n", codec_name);
-        exit(1);
+void render(int file_descriptor, const uint8_t* frame_data, int frame_length,
+            AVCodecContext* ctx, int finish, int i) {
+    if (finish) {
+        // get a packet
+        AVPacket *pkt = av_packet_alloc();
+        if (!pkt)
+            exit(1);
+
+        FILE* f = fopen("out.mp4", "a");
+        if (!f) {
+            fprintf(stderr, "Could not open file\n");
+            exit(1);
+        }
+        /* flush the encoder */
+        encode(ctx, NULL, pkt, f);
+
+        /* add sequence end code to have a real MPEG file */
+        uint8_t endcode[] = { 0, 0, 1, 0xb7 };
+        fwrite(endcode, 1, sizeof(endcode), f);
+        fclose(f);
+
+        // av_frame_free(&frame);
+        av_packet_free(&pkt);
+        return;
     }
 
-    // get the codec context
-    AVCodecContext *ctx = avcodec_alloc_context3(codec);
-    if (!ctx) {
-        fprintf(stderr, "Could not allocate video codec context\n");
-        exit(1);
-    }
+        int x, y, ret;
+        // get a packet
+        AVPacket *pkt = av_packet_alloc();
+        if (!pkt)
+            exit(1);
 
-    // get a packet
-    AVPacket *pkt = av_packet_alloc();
-    if (!pkt)
-        exit(1);
+        struct SwsContext *rgba_yuv_swsctx = sws_getContext(
+                ctx->width, ctx->height, AV_PIX_FMT_RGBA,
+                ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
+                0, 0, 0, 0);
 
-    // put sample parameters
-    ctx->bit_rate = 400000;
-    // resolution must be a multiple of two
-    ctx->width = 2560;
-    ctx->height = 1440;
-    // frames per second
-    ctx->time_base = (AVRational){1, 60};
-    ctx->framerate = (AVRational){60, 1};
+        struct SwsContext *yuv_rgba_swsctx = sws_getContext(
+                ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
+                ctx->width, ctx->height, AV_PIX_FMT_RGBA,
+                0, 0, 0, 0);
 
-    /* emit one intra frame every ten frames
-     * check frame pict_type before passing frame
-     * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
-     * then gop_size is ignored and the output of encoder
-     * will always be I frame irrespective to gop_size
-     */
-    ctx->gop_size = 10;
-    ctx->max_b_frames = 1;
-    ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+        struct SwsContext *noop_swsctx = sws_getContext(
+                ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
+                ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
+                0, 0, 0, 0);
 
-    if (codec->id == AV_CODEC_ID_H264)
-        av_opt_set(ctx->priv_data, "preset", "slow", 0);
-
-    // initialize the context
-    int ret = avcodec_open2(ctx, codec, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "Could not open codec: %s\n", av_err2str(ret));
-        exit(1);
-    }
-
-    FILE* f = fdopen(file_descriptor, "wb");
-    // f = fopen(filename, "wb");
-    if (!f) {
-        fprintf(stderr, "Could not open file\n");
-        exit(1);
-    }
-
-    struct SwsContext *rgba_yuv_swsctx = sws_getContext(
-            ctx->width, ctx->height, AV_PIX_FMT_RGBA,
-            ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
-            0, 0, 0, 0);
-
-    struct SwsContext *yuv_rgba_swsctx = sws_getContext(
-            ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
-            ctx->width, ctx->height, AV_PIX_FMT_RGBA,
-            0, 0, 0, 0);
-
-    struct SwsContext *noop_swsctx = sws_getContext(
-            ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
-            ctx->width, ctx->height, AV_PIX_FMT_YUV420P,
-            0, 0, 0, 0);
-
-    // // convert rgba->yuv
-    // uint8_t * inData[1] = { frame_data }; // RGBA32 have one plane
-    // int inLinesize[1] = { 4*ctx->width }; // RGBA stride
-    // sws_scale(swsctx,
-    //           (uint8_t const * const *)inData,
-    //           inLinesize,
-    //           0,
-    //           ctx->height,
-    //           frame->data,
-    //           frame->linesize);
-
-    int x, y, i;
-    for (i = 0; i < 60; i++) {
         pkt->data = NULL;
         pkt->size = 0;
         fflush(stdout);
@@ -194,9 +154,15 @@ void render(int file_descriptor, const uint8_t* frame_data, int frame_length) {
                 }
             }
             frame->pts = i;
+            FILE* f = fopen("out.mp4", "w");
+            if (!f) {
+                fprintf(stderr, "Could not open file\n");
+                exit(1);
+            }
             encode(ctx, frame, pkt, f);
+            fclose(f);
             av_frame_free(&frame);
-            continue;
+            return;
         }
 
         // get and configure another frame
@@ -250,22 +216,16 @@ void render(int file_descriptor, const uint8_t* frame_data, int frame_length) {
                   frame3->linesize);
 
         frame3->pts = i;
+        FILE* f = fopen("out.mp4", "a");
+        if (!f) {
+            fprintf(stderr, "Could not open file\n");
+            exit(1);
+        }
         encode(ctx, frame3, pkt, f);
+        fclose(f);
 
         av_frame_free(&frame2);
         av_frame_free(&frame3);
-    }
-    /* flush the encoder */
-    encode(ctx, NULL, pkt, f);
-
-    /* add sequence end code to have a real MPEG file */
-    uint8_t endcode[] = { 0, 0, 1, 0xb7 };
-    fwrite(endcode, 1, sizeof(endcode), f);
-    fclose(f);
-
-    avcodec_free_context(&ctx);
-    // av_frame_free(&frame);
-    av_packet_free(&pkt);
     return;
 }
 
@@ -285,7 +245,58 @@ static PyObject* helloworld(PyObject* self, PyObject* args)
         printf("0x%02x ", (unsigned char)frame_data[i]);
     printf("...\n");
 
-    render(file_descriptor, (const uint8_t *)frame_data, frame_length);
+    // get the codec
+    const char *codec_name = "mpeg4";
+    const AVCodec *codec;
+    codec = avcodec_find_encoder_by_name(codec_name);
+    if (!codec) {
+        fprintf(stderr, "Codec '%s' not found\n", codec_name);
+        exit(1);
+    }
+
+    // get the codec context
+    AVCodecContext *ctx = avcodec_alloc_context3(codec);
+    if (!ctx) {
+        fprintf(stderr, "Could not allocate video codec context\n");
+        exit(1);
+    }
+
+    // put sample parameters
+    ctx->bit_rate = 400000;
+    // resolution must be a multiple of two
+    ctx->width = 2560;
+    ctx->height = 1440;
+    // frames per second
+    ctx->time_base = (AVRational){1, 60};
+    ctx->framerate = (AVRational){60, 1};
+
+    /* emit one intra frame every ten frames
+     * check frame pict_type before passing frame
+     * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
+     * then gop_size is ignored and the output of encoder
+     * will always be I frame irrespective to gop_size
+     */
+    ctx->gop_size = 10;
+    ctx->max_b_frames = 1;
+    ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+
+    if (codec->id == AV_CODEC_ID_H264)
+        av_opt_set(ctx->priv_data, "preset", "slow", 0);
+
+    // initialize the context
+    int ret = avcodec_open2(ctx, codec, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "Could not open codec: %s\n", av_err2str(ret));
+        exit(1);
+    }
+
+    int i;
+    for (i = 0; i < 60; i++) {
+        render(file_descriptor, (const uint8_t *)frame_data, frame_length, ctx, 0, i);
+    }
+    render(file_descriptor, (const uint8_t *)frame_data, frame_length, ctx, 1, -1);
+
+    avcodec_free_context(&ctx);
 
     return Py_None;
 }

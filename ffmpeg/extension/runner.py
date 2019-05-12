@@ -19,10 +19,11 @@ print(f"Read {num_bytes} bytes ({num_pixels} pixels and {num_frames} frames)")
 
 frame = rgba[:bytes_per_frame]
 
-f = open('out.mp4', 'wb')
+# f = open('out.mp4', 'wb')
 print("Sending byte string:")
 for i in range(12):
     sys.stdout.write(f"0x{frame[i]:02x} ")
 sys.stdout.write("...\n\n")
 sys.stdout.flush()
-myModule.helloworld(f.fileno(), rgba)
+
+myModule.helloworld(-1, rgba)
