@@ -46,8 +46,8 @@ static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, FILE*
     int ret;
 
     /* send the frame to the encoder */
-    // if (frame)
-    //     printf("Send frame %3"PRId64"\n", frame->pts);
+    if (frame)
+        printf("Send frame %3"PRId64"\n", frame->pts);
 
     ret = avcodec_send_frame(enc_ctx, frame);
     if (ret < 0) {
@@ -64,7 +64,7 @@ static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, FILE*
             exit(1);
         }
 
-        // printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
+        printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
         fwrite(pkt->data, 1, pkt->size, f);
         av_packet_unref(pkt);
     }
@@ -122,7 +122,7 @@ void render(int file_descriptor, const uint8_t* frame_data, int frame_length,
     fflush(stdout);
 
     // TODO: encode the first frame
-    if (i == 0) {
+    if (0 && i == 0) {
         AVFrame *frame = av_frame_alloc();
         // get and configure a frame
         if (!frame) {
@@ -228,7 +228,8 @@ void render(int file_descriptor, const uint8_t* frame_data, int frame_length,
 
 AVCodecContext* get_context() {
     // get the codec
-    const char *codec_name = "mpeg4";
+    // const char *codec_name = "mpeg4";
+    const char *codec_name = "libx264";
     const AVCodec *codec;
     codec = avcodec_find_encoder_by_name(codec_name);
     if (!codec) {
@@ -244,7 +245,7 @@ AVCodecContext* get_context() {
     }
 
     // put sample parameters
-    ctx->bit_rate = 400000;
+    ctx->bit_rate = 1000000;
     // resolution must be a multiple of two
     ctx->width = 2560;
     ctx->height = 1440;
@@ -262,8 +263,13 @@ AVCodecContext* get_context() {
     ctx->max_b_frames = 1;
     ctx->pix_fmt = AV_PIX_FMT_YUV420P;
 
-    if (codec->id == AV_CODEC_ID_H264)
-        av_opt_set(ctx->priv_data, "preset", "slow", 0);
+    if (codec->id == AV_CODEC_ID_H264) {
+        av_opt_set(ctx->priv_data, "tune", "animation", 0);
+        // medium is default
+        av_opt_set(ctx->priv_data, "preset", "medium", 0);
+        // 23 is default
+        // av_opt_set(ctx->priv_data, "crf", "23", 0);
+    }
 
     // initialize the context
     int ret = avcodec_open2(ctx, codec, NULL);
@@ -275,48 +281,12 @@ AVCodecContext* get_context() {
 }
 
 
-static PyObject* helloworld(PyObject* self, PyObject* args)
-{
-    // read an rgba frame and file descriptor
-    int file_descriptor;
-    const char *frame_data;
-    Py_ssize_t frame_length;
-    if (!PyArg_ParseTuple(args, "is#", &file_descriptor, &frame_data, &frame_length)) {
-        return Py_None;
-    }
-    printf("Read file descriptor %d\n", file_descriptor);
-    printf("Read %ld bytes of frame data\n", frame_length);
-    printf("Read byte string:\n");
-    for (int i = 0; i < 12; i++)
-        printf("0x%02x ", (unsigned char)frame_data[i]);
-    printf("...\n");
-
-    AVCodecContext* ctx = get_context();
-    for (int i = 0; i < 60; i++) {
-        render(file_descriptor, (const uint8_t *)frame_data, frame_length, ctx, 0, i);
-    }
-    render(file_descriptor, (const uint8_t *)frame_data, frame_length, ctx, 1, -1);
-
-    avcodec_free_context(&ctx);
-
-    return Py_None;
-}
-
-// Our Module's Function Definition struct
-// We require this `NULL` to signal the end of our method
-// definition
-static PyMethodDef myMethods[] = {
-    { "helloworld", helloworld, METH_VARARGS, "Prints Hello World" },
-    { NULL, NULL, 0, NULL }
-};
-
 // Our Module Definition struct
 static struct PyModuleDef myModule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "myModule",
     .m_doc = "Test Module",
     .m_size = -1,
-    .m_methods = myMethods,
 };
 
 /* Custom type code */
@@ -360,12 +330,12 @@ static PyObject* Custom_process_frame(CustomObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "is#i", &file_descriptor, &frame_data, &frame_length, &frame_number)) {
         return Py_None;
     }
-    printf("Read file descriptor %d\n", file_descriptor);
-    printf("Read %ld bytes of frame data\n", frame_length);
-    printf("Read byte string:\n");
-    for (int i = 0; i < 12; i++)
-        printf("0x%02x ", (unsigned char)frame_data[i]);
-    printf("...\n");
+    // printf("Read file descriptor %d\n", file_descriptor);
+    // printf("Read %ld bytes of frame data\n", frame_length);
+    // printf("Read byte string:\n");
+    //for (int i = 0; i < 12; i++)
+    //    printf("0x%02x ", (unsigned char)frame_data[i]);
+    //printf("...\n");
 
     render(file_descriptor, (const uint8_t *)frame_data, frame_length,
            self->context, 0, self->frame_count);
