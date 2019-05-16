@@ -28,7 +28,8 @@ sys.stdout.flush()
 
 # myModule.helloworld(-1, rgba)
 c = myModule.Custom()
-for i in range(60):
-    frame = rgba[bytes_per_frame * i:bytes_per_frame * (i + 1)]
-    c.process_frame(-1, frame, i)
-c.finish(-1, rgba)
+c.process_frame(-1, rgba, i)
+# for i in range(60):
+#     frame = rgba[bytes_per_frame * i:bytes_per_frame * (i + 1)]
+#     c.process_frame(-1, frame, i)
+# c.finish(-1, rgba)
