@@ -48,7 +48,7 @@
 #include <libswresample/swresample.h>
 
 #define STREAM_DURATION   10.0
-#define STREAM_FRAME_RATE 25 /* 25 images/s */
+#define STREAM_FRAME_RATE 60 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 
 #define SCALE_FLAGS SWS_BICUBIC
@@ -475,7 +475,7 @@ static AVFrame *get_video_frame(OutputStream *ost, const char *frame_data)
 
     /* check if we want to generate more frames */
     if (av_compare_ts(ost->next_pts, c->time_base,
-                      STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
+                      STREAM_DURATION, (AVRational){ 1, 1 }) >= 0 || ost->next_pts == 60)
         return NULL;
 
     /* when we pass a frame to the encoder, it may keep a reference to it
@@ -521,7 +521,11 @@ static AVFrame *get_video_frame(OutputStream *ost, const char *frame_data)
             fprintf(stderr, "Could not allocate the video frame2 data\n");
             exit(1);
         } else {}
-        frame2->data[0] = frame_data;
+        uint64_t bytes_per_frame = 2560 * 1440 * 4;
+        uint64_t offset = bytes_per_frame * ((uint64_t)ost->next_pts % 60);
+        printf("pts    = %llu\n", ost->next_pts);
+        printf("offset = %llu\n", offset);
+        frame2->data[0] = frame_data + offset;
         ost->sws_ctx = sws_getContext(ost->encoding_context->width,
                                       ost->encoding_context->height,
                                       AV_PIX_FMT_RGBA,
@@ -580,7 +584,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, const char 
         exit(1);
     }
 
-    return (frame || got_packet) ? 0 : 1;
+    return got_packet ? 0 : 1;
 }
 
 static void close_stream(AVFormatContext *oc, OutputStream *ost)
@@ -653,13 +657,13 @@ static PyObject* makevid(CustomObject *self, PyObject *args) {
         encode_video = 1;
     }
 
-    /* COMMENT TO DISABLE SOUND */
-    if (fmt->audio_codec != AV_CODEC_ID_NONE) {
-        add_stream(&audio_st, oc, &audio_codec, fmt->audio_codec);
-        have_audio = 1;
-        encode_audio = 1;
-    }
-    /* COMMENT TO DISABLE SOUND */
+    // /* COMMENT TO DISABLE SOUND */
+    // if (fmt->audio_codec != AV_CODEC_ID_NONE) {
+    //     add_stream(&audio_st, oc, &audio_codec, fmt->audio_codec);
+    //     have_audio = 1;
+    //     encode_audio = 1;
+    // }
+    // /* COMMENT TO DISABLE SOUND */
 
     /* Now that all the parameters are set, we can open the audio and
      * video codecs and allocate the necessary encode buffers. */
@@ -689,15 +693,17 @@ static PyObject* makevid(CustomObject *self, PyObject *args) {
         return 1;
     }
 
-    while (encode_video || encode_audio) {
-        /* select the stream to encode */
-        if (encode_video &&
-            (!encode_audio || av_compare_ts(video_st.next_pts, video_st.encoding_context->time_base,
-                                            audio_st.next_pts, audio_st.encoding_context->time_base) <= 0)) {
-            encode_video = !write_video_frame(oc, &video_st, frame_data);
-        } else {
-            encode_audio = !write_audio_frame(oc, &audio_st);
-        }
+    // while (encode_video || encode_audio) {
+    while (video_st.next_pts < 60 || encode_video) {
+        encode_video = !write_video_frame(oc, &video_st, frame_data);
+        // /* select the stream to encode */
+        // if (encode_video &&
+        //     (!encode_audio || av_compare_ts(video_st.next_pts, video_st.encoding_context->time_base,
+        //                                     audio_st.next_pts, audio_st.encoding_context->time_base) <= 0)) {
+        //     encode_video = !write_video_frame(oc, &video_st, frame_data);
+        // } else {
+        //     encode_audio = !write_audio_frame(oc, &audio_st);
+        // }
     }
 
     /* Write the trailer, if any. The trailer must be written before you
