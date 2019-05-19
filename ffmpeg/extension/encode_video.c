@@ -115,11 +115,11 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 
     // allocate SwsContext
     ost->sws_ctx = sws_getContext(
-        ost->encoding_context->width,
-        ost->encoding_context->height,
+        c->width,
+        c->height,
         AV_PIX_FMT_RGBA,
-        ost->encoding_context->width,
-        ost->encoding_context->height,
+        c->width,
+        c->height,
         c->pix_fmt,
         SCALE_FLAGS, NULL, NULL, NULL);
 }
@@ -358,7 +358,7 @@ static int FFmpegWriter_init(FFmpegWriterObject *self, PyObject *args, PyObject 
                                      &height, &width, &fps, &self->debug))
         return -1;
 
-    av_log_set_level(AV_LOG_QUIET);
+    av_log_set_level(AV_LOG_VERBOSE);
     /* allocate the output media context */
     if (&self->oc != NULL) {
         avformat_free_context(self->oc);

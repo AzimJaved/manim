@@ -246,7 +246,7 @@ class SceneFileWriter(object):
         else:
             command += [temp_file_path]
         # self.writing_process = subprocess.Popen(command, stdin=subprocess.PIPE)
-        self.writing_process = ffmpeg_writer.FFmpegWriter(temp_file_path, height, width, 60)
+        self.writing_process = ffmpeg_writer.FFmpegWriter(temp_file_path, height, width, fps)
         # self.writing_process = subprocess.Popen(
         #     'cat',
         #     stdin=subprocess.PIPE,

@@ -27,7 +27,7 @@ module = Extension(
 )
 
 setup(
-    name = 'PackageName',
+    name = 'ffmpeg_writer',
     version = '1.0',
     ext_modules = [module],
 )
