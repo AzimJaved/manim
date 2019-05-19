@@ -1,3 +1,5 @@
+# The FFmpeg C API is unfortunately too unwieldy to make pursuing this beneficial
+
 # Manim - Mathematical Animation Engine
 [![Documentation Status](https://readthedocs.org/projects/manim/badge/?version=latest)](https://manim.readthedocs.io/en/latest/?badge=latest)
 [![Build Status](https://travis-ci.org/3b1b/manim.svg?branch=master)](https://travis-ci.org/3b1b/manim)
