@@ -1,8 +1,8 @@
 from distutils.core import setup, Extension
 import os
-FFMPEG_INSTALL = '../install'
+FFMPEG_INSTALL = 'ffmpeg/install'
 module = Extension(
-    'myModule',
+    'ffmpeg_writer',
     include_dirs = [os.path.join(FFMPEG_INSTALL, 'include')],
     library_dirs = [os.path.join(FFMPEG_INSTALL, 'lib')],
     libraries = [
@@ -23,7 +23,7 @@ module = Extension(
         "xcb-xfixes",
         "z",
     ],
-    sources = ['encode_video.c'],
+    sources = [os.path.join('ffmpeg', 'extension', 'encode_video.c')],
 )
 
 setup(

@@ -17,6 +17,7 @@ from manimlib.utils.file_ops import guarantee_existance
 from manimlib.utils.file_ops import add_extension_if_not_present
 from manimlib.utils.file_ops import get_sorted_integer_files
 from manimlib.utils.sounds import get_full_sound_file_path
+import ffmpeg_writer
 
 
 class SceneFileWriter(object):
@@ -169,7 +170,8 @@ class SceneFileWriter(object):
 
     def write_frame(self, frame):
         if self.write_to_movie:
-            self.writing_process.stdin.write(frame.tostring())
+            # self.writing_process.stdin.write(frame.tostring())
+            self.writing_process.process_frame(frame.tostring())
 
     def save_final_image(self, image):
         file_path = self.get_image_file_path()
@@ -192,7 +194,8 @@ class SceneFileWriter(object):
     def finish(self):
         if self.write_to_movie:
             if hasattr(self, "writing_process"):
-                self.writing_process.terminate()
+                # self.writing_process.terminate()
+                pass
             self.combine_movie_files()
         if self.save_last_frame:
             self.scene.update_frame(ignore_skipping=True)
@@ -243,20 +246,22 @@ class SceneFileWriter(object):
         else:
             command += [temp_file_path]
         # self.writing_process = subprocess.Popen(command, stdin=subprocess.PIPE)
-        self.writing_process = subprocess.Popen(
-            'cat',
-            stdin=subprocess.PIPE,
-        )
+        self.writing_process = ffmpeg_writer.FFmpegWriter(temp_file_path, 1440, 2560, 60)
+        # self.writing_process = subprocess.Popen(
+        #     'cat',
+        #     stdin=subprocess.PIPE,
+        # )
 
     def close_movie_pipe(self):
-        self.writing_process.stdin.close()
-        self.writing_process.wait()
+        # self.writing_process.stdin.close()
+        # self.writing_process.wait()
+        self.writing_process.finish()
         if self.livestreaming:
             return True
-        # shutil.move(
-        #     self.temp_partial_movie_file_path,
-        #     self.partial_movie_file_path,
-        # )
+        shutil.move(
+            self.temp_partial_movie_file_path,
+            self.partial_movie_file_path,
+        )
 
     def combine_movie_files(self):
         # Manim renders the scene as many smaller movie files

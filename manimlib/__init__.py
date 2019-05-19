@@ -2,6 +2,7 @@
 import manimlib.config
 import manimlib.extract_scene
 import manimlib.stream_starter
+import ffmpeg_writer
 
 
 def main():

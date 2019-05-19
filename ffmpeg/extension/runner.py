@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import itertools
-import myModule
+import ffmpeg_writer
 import sys
 
 height = 1440
@@ -9,7 +9,7 @@ fps = 60
 bytes_per_frame = height * width * 4
 
 
-infile = open('rgb.out', 'rb')
+infile = open('rgba.out', 'rb')
 rgba = infile.read()
 
 num_bytes = len(rgba)
@@ -19,17 +19,14 @@ print(f"Read {num_bytes} bytes ({num_pixels} pixels and {num_frames} frames)")
 
 frame = rgba[:bytes_per_frame]
 
-# f = open('out.mp4', 'wb')
 print("Sending byte string:")
 for i in range(12):
     sys.stdout.write(f"0x{frame[i]:02x} ")
 sys.stdout.write("...\n\n")
 sys.stdout.flush()
 
-# myModule.helloworld(-1, rgba)
-c = myModule.Custom()
-c.process_frame(-1, rgba, i)
-# for i in range(60):
-#     frame = rgba[bytes_per_frame * i:bytes_per_frame * (i + 1)]
-#     c.process_frame(-1, frame, i)
-# c.finish(-1, rgba)
+c = ffmpeg_writer.FFmpegWriter("out.mp4", 1440, 2560, 60)
+for i in range(60 * 3):
+    frame = rgba[bytes_per_frame * i:bytes_per_frame * (i + 1)]
+    c.process_frame(frame)
+c.finish()
